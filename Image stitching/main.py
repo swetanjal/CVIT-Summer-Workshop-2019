@@ -1,8 +1,8 @@
 import numpy as np
 import cv2
 
-im1 = cv2.imread('og1.jpg')
-im2 = cv2.imread('og2.jpg')
+im1 = cv2.imread('test21.jpg')
+im2 = cv2.imread('test22.jpg')
 
 sift = cv2.ORB_create()
 kp1, des1 = sift.detectAndCompute(im1, None)
