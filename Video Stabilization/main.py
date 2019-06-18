@@ -26,7 +26,7 @@ def f(img1, img2):
         pts2.append([kp2[good[i].queryIdx].pt[0], kp2[good[i].queryIdx].pt[1]])
     pts1 = np.asarray(pts1, dtype = np.float32)
     pts2 = np.asarray(pts2, dtype = np.float32)
-    M, inliers = cv2.findHomography(pts2, pts1, cv2.RANSAC)
+    M, inliers = cv2.findHomography(pts1, pts2, cv2.RANSAC)
     return M
 
 def FrameCapture(path):
@@ -98,13 +98,18 @@ def stabilize():
     L11 = 0
     for i in range(len(X) - 1):
         L11 = L11 + cp.abs((fx[i + 1] - fx[i])) + cp.abs((fy[i + 1] - fy[i]))
+    # L12
+    L12 = 0
+    for i in range(len(X) - 2):
+        L12 = L12 + cp.abs((fx[i + 2] - 2 * fx[i + 1] + fx[i])) + cp.abs((fy[i + 2] - 2 * fy[i + 1] + fy[i]))
     # L13
     L13 = 0
     for i in range(len(X) - 3):
         L13 = L13 + cp.abs((fx[i + 3] - 3 * fx[i + 2] + 3 * fx[i + 1] - fx[i])) + cp.abs((fy[i + 3] - 3 * fy[i + 2] + 3 * fy[i + 1] - fy[i]))
     lambda1 = 1000
+    lambda2 = 100
     lambda3 = 10000
-    obj = cp.Minimize(D + lambda1 * L11 + lambda3 * L13)
+    obj = cp.Minimize(D + lambda1 * L11 + lambda2 * L12 + lambda3 * L13)
     sol = cp.Problem(obj, constraints)
     sol.solve()
     plt.plot(X)
@@ -119,24 +124,58 @@ def stabilize():
     with open('stabilised_y.csv', 'w') as FILE:
         writer = csv.writer(FILE)
         writer.writerows([fy.value])
-def generate_video():
+def generate_video(path):
     f = open('stablised_x.csv', 'r')
+    csvreader = csv.reader(f)
+    smooth_X = []
+    for rows in csvreader:
+        for i in rows:
+            smooth_X.append(float(i))
+    f = open('stabilised_y.csv', 'r')
+    csvreader = csv.reader(f)
+    smooth_Y = []
+    for rows in csvreader:
+        for i in rows:
+            smooth_Y.append(float(i))
+
+    f = open('x.csv', 'r')
     csvreader = csv.reader(f)
     X = []
     for rows in csvreader:
         for i in rows:
             X.append(float(i))
-    f = open('stabilised_y.csv', 'r')
+    f = open('y.csv', 'r')
     csvreader = csv.reader(f)
     Y = []
     for rows in csvreader:
         for i in rows:
             Y.append(float(i))    
     plt.plot(X)
+    plt.plot(smooth_X)
     plt.show()
     plt.plot(Y)
+    plt.plot(smooth_Y)
     plt.show()
-
+    vidObj = cv2.VideoCapture(path)
+    success, image = vidObj.read()
+    currY = int(len(image) / 4)
+    currX = int(len(image[0]) / 4)
+    W = 2 * currX
+    H = 2 * currY
+    cnt = 1
+    while success:
+        success, image = vidObj.read()
+        x_shift = int(X[cnt] - smooth_X[cnt])
+        y_shift = int(Y[cnt] - smooth_Y[cnt])
+        cv2.rectangle(image,(currX + x_shift, currY + y_shift),(x_shift + W + currX, y_shift + H + currY), (0,0,255), 3)
+        cv2.imshow('test', image[currY + y_shift : y_shift + H + currY, currX + x_shift : x_shift + W + currX, :])
+        cv2.waitKey(20)
+        if success == False:
+            break
+        if cnt == 1000:
+            break
+        cnt = cnt + 1
+    cv2.destroyAllWindows()
 #FrameCapture('./movie.mp4')
 #stabilize()
-generate_video()
+generate_video('./movie.mp4')
